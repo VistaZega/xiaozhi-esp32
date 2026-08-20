@@ -31,8 +31,8 @@ private:
     void InitializeDisplayI2c() {
         i2c_master_bus_config_t bus_config = {
             .i2c_port = (i2c_port_t)0,
-            .sda_io_num = DISPLAY_SDA_PIN,
-            .scl_io_num = DISPLAY_SCL_PIN,
+            .sda_io_num = GPIO_NUM_21,
+            .scl_io_num = GPIO_NUM_22,
             .clk_source = I2C_CLK_SRC_DEFAULT,
             .glitch_ignore_cnt = 7,
             .intr_priority = 0,
@@ -45,10 +45,10 @@ private:
     }
 
     void InitializeSsd1306Display() {
-        // SH1106 / I2C config
+        // SH1106 / I2C config (100kHz standard speed for stable communication)
         esp_lcd_panel_io_i2c_config_t io_config = {
             .dev_addr = 0x3C,
-            .scl_speed_hz = 400 * 1000,
+            .scl_speed_hz = 100 * 1000,
             .control_phase_bytes = 1,
             .dc_bit_offset = 6,
             .lcd_cmd_bits = 8,
