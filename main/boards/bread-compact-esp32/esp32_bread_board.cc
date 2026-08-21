@@ -14,6 +14,9 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
 #include <esp_lcd_panel_sh1106.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <esp_random.h>
 
 #define TAG "ESP32-MarsbearSupport"
 
@@ -27,6 +30,7 @@ private:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
     Display* display_ = nullptr;
+    TaskHandle_t anim_task_handle_ = nullptr;
 
     void InitializeDisplayI2c() {
         i2c_master_bus_config_t bus_config = {
@@ -86,6 +90,37 @@ private:
         display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
     }
 
+    // Auto-blink & Dynamic Face Animation Loop Task
+    void StartFaceAnimationTask() {
+        xTaskCreate([](void* arg) {
+            CompactWifiBoard* board = static_cast<CompactWifiBoard*>(arg);
+            uint32_t next_blink_tick = xTaskGetTickCount() + pdMS_TO_TICKS(2000 + (esp_random() % 3000));
+            
+            while (true) {
+                vTaskDelay(pdMS_TO_TICKS(100));
+                
+                if (board->display_ == nullptr) continue;
+                
+                auto& app = Application::GetInstance();
+                DeviceState state = app.GetDeviceState();
+                
+                // Kedipan Alami saat Robot dalam status Idle / Standby
+                if (state == kDeviceStateIdle) {
+                    uint32_t current_tick = xTaskGetTickCount();
+                    if (current_tick >= next_blink_tick) {
+                        // Animasi kedipan cepat (150ms)
+                        board->display_->SetEmotion("blink");
+                        vTaskDelay(pdMS_TO_TICKS(150));
+                        board->display_->SetEmotion("neutral");
+                        
+                        // Jadwalkan kedipan berikutnya (antara 2.5 hingga 6 detik)
+                        next_blink_tick = current_tick + pdMS_TO_TICKS(2500 + (esp_random() % 3500));
+                    }
+                }
+            }
+        }, "face_anim", 3072, this, 1, &anim_task_handle_);
+    }
+
     void InitializeButtons() {
         gpio_config_t io_conf = {
             .pin_bit_mask = 1ULL << BUILTIN_LED_GPIO,
@@ -132,6 +167,7 @@ public:
         InitializeSsd1306Display();
         InitializeButtons();
         InitializeTools();
+        StartFaceAnimationTask();
     }
 
     virtual AudioCodec* GetAudioCodec() override 
