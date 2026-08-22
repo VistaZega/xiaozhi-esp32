@@ -17,6 +17,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_random.h>
+#include <esp_http_client.h>
 
 #define TAG "ESP32-MarsbearSupport"
 
@@ -108,12 +109,9 @@ private:
                 if (state == kDeviceStateIdle) {
                     uint32_t current_tick = xTaskGetTickCount();
                     if (current_tick >= next_blink_tick) {
-                        // Animasi kedipan cepat (150ms)
                         board->display_->SetEmotion("blink");
                         vTaskDelay(pdMS_TO_TICKS(150));
                         board->display_->SetEmotion("neutral");
-                        
-                        // Jadwalkan kedipan berikutnya (antara 2.5 hingga 6 detik)
                         next_blink_tick = current_tick + pdMS_TO_TICKS(2500 + (esp_random() % 3500));
                     }
                 }
@@ -156,8 +154,40 @@ private:
         });
     }
 
+    // Fungsi C++ mengambil data langsung dari perguruanpembda.com/api_xiaozhi.php
+    static std::string FetchPembdaApi() {
+        esp_http_client_config_t config = {};
+        config.url = "http://perguruanpembda.com/api_xiaozhi.php";
+        config.timeout_ms = 4000;
+
+        esp_http_client_handle_t client = esp_http_client_init(&config);
+        std::string response_data = "";
+
+        if (esp_http_client_perform(client) == ESP_OK) {
+            char buffer[512];
+            int read_len = esp_http_client_read(client, buffer, sizeof(buffer) - 1);
+            if (read_len > 0) {
+                buffer[read_len] = 0;
+                response_data = std::string(buffer);
+            }
+        }
+        esp_http_client_cleanup(client);
+        
+        if (response_data.empty()) {
+            return "Data resmi dari Perguruan PEMBDA Nias: Pendaftaran siswa/mahasiswa baru telah dibuka di perguruanpembda.com.";
+        }
+        return response_data;
+    }
+
+    // Mendaftarkan Custom Tool ke MCP Server internal ESP32
     void InitializeTools() {
         static LampController lamp(LAMP_GPIO);
+        
+        auto& mcp = McpServer::GetInstance();
+        mcp.AddTool("self.pembda.get_info", "Ambil data resmi realtime dari PembdaHUB Yayasan Perguruan PEMBDA Nias (perguruanpembda.com)", PropertyList(), 
+        [](const PropertyList& properties) -> ReturnValue {
+            return FetchPembdaApi();
+        });
     }
 
 public:
