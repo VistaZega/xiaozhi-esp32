@@ -18,6 +18,7 @@
 #include <freertos/task.h>
 #include <esp_random.h>
 #include <esp_http_client.h>
+#include <esp_wifi.h>
 
 #define TAG "ESP32-MarsbearSupport"
 
@@ -116,7 +117,7 @@ private:
                     }
                 }
             }
-        }, "face_anim", 3072, this, 1, &anim_task_handle_);
+        }, "face_anim", 4096, this, 1, &anim_task_handle_);
     }
 
     void InitializeButtons() {
@@ -174,7 +175,7 @@ private:
         esp_http_client_cleanup(client);
         
         if (response_data.empty()) {
-            return "Data resmi dari Perguruan PEMBDA Nias: Pendaftaran siswa/mahasiswa baru telah dibuka di perguruanpembda.com.";
+            return "Data resmi dari Perguruan PEMBDA Nias: Pendaftaran siswa baru telah dibuka di perguruanpembda.com.";
         }
         return response_data;
     }
@@ -193,6 +194,9 @@ private:
 public:
     CompactWifiBoard() : WifiBoard(), boot_button_(BOOT_BUTTON_GPIO), touch_button_(TOUCH_BUTTON_GPIO), asr_button_(ASR_BUTTON_GPIO)
     {
+        // Paksa Wi-Fi selalu aktif 100% tanpa sleep saat standby
+        esp_wifi_set_ps(WIFI_PS_NONE);
+
         InitializeDisplayI2c();
         InitializeSsd1306Display();
         InitializeButtons();
